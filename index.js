@@ -28,17 +28,39 @@ async function run() {
   try {
     const productCollection = client.db("stockX").collection("product");
 
-    // Route to get products //
+    // HOME PAGE PRODUCT SEARCH AND PAGINATION //
     app.get("/products", async (req, res) => {
+      const page = parseInt(req.query.page) || 1;
+      const searchName = req.query.name || ""; 
+      const query = {};
+
+      if (searchName) {
+        query.name = { $regex: searchName, $options: "i" }; 
+      }
+
       try {
-        const result = await productCollection.find().toArray();
-        console.log(result); 
-        res.send(result);
+        const ITEM_PER_PAGE = 10; 
+        const totalItems = await productCollection.countDocuments(query);
+        const pageCount = Math.ceil(totalItems / ITEM_PER_PAGE);
+        const result = await productCollection
+          .find(query)
+          .skip((page - 1) * ITEM_PER_PAGE)
+          .limit(ITEM_PER_PAGE)
+          .toArray();
+
+        res.send({
+          pagination: {
+            totalItems,
+            pageCount,
+          },
+          result,
+        });
       } catch (error) {
-        console.error("Error fetching products:", error);
+        console.error("Error fetching products", error);
         res.status(500).send("Failed to fetch products");
       }
     });
+
     await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!"
